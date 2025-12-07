@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { MapPin, Calendar, User, ChevronRight, Play, CheckSquare, Truck, AlertCircle, Plus, X, RefreshCw, Clock, Globe, Trash2 } from 'lucide-react';
+import { MapPin, Calendar, User, ChevronRight, Play, CheckSquare, Truck, AlertCircle, Plus, X, RefreshCw, Clock, Globe, Trash2, Search, Filter, SortAsc } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Assignment, User as UserType } from '../types';
 import { dataService } from '../services/store';
@@ -29,6 +30,9 @@ const statusLabels = {
 const Assignments: React.FC<AssignmentsProps> = ({ assignments, currentUser, onUpdateStatus }) => {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'date' | 'footage'>('date');
+  
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
@@ -91,7 +95,7 @@ const Assignments: React.FC<AssignmentsProps> = ({ assignments, currentUser, onU
     setIsSyncing(false);
     if (result.success) {
       setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      alert(`Sync Complete!\nNew Assignments: ${result.newAssignments}\nNew Users Created: ${result.newUsers}`);
+      alert(`Sync Complete!\nNew Assignments: ${result.newAssignments}\nUpdated Assignments: ${result.updatedAssignments}\nNew Users Created: ${result.newUsers}`);
       window.location.reload();
     } else {
       alert(`Sync Failed: ${result.error}`);
@@ -106,61 +110,122 @@ const Assignments: React.FC<AssignmentsProps> = ({ assignments, currentUser, onU
   };
 
   const displayedAssignments = assignments.filter(a => {
+    // 1. Filter by Role
     if (currentUser.role === 'crew') return a.crewId === currentUser.id;
     return true;
-  }).filter(a => filter === 'all' || a.status === filter);
+  }).filter(a => {
+    // 2. Filter by Status Tab
+    if (filter === 'all') return true;
+    if (filter === 'pending') return ['pending', 'blocked'].includes(a.status);
+    if (filter === 'started') return ['started', 'en_route'].includes(a.status);
+    if (filter === 'completed') return a.status === 'completed';
+    return a.status === filter;
+  }).filter(a => {
+    // 3. Filter by Search Term
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const crewName = crews.find(c => c.id === a.crewId)?.name.toLowerCase() || '';
+    return (
+      a.title.toLowerCase().includes(term) ||
+      a.address.toLowerCase().includes(term) ||
+      crewName.includes(term) ||
+      (a.extendedDetails?.area || '').toLowerCase().includes(term)
+    );
+  }).sort((a, b) => {
+    // 4. Sort
+    if (sortBy === 'footage') {
+        return b.metrics.targetFootage - a.metrics.targetFootage;
+    }
+    // Default Date Sort
+    if (filter === 'completed') {
+      return new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime();
+    }
+    return new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime();
+  });
 
   return (
     <div className="space-y-6 relative">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">
-            {currentUser.role === 'crew' ? 'My Assignments' : 'Field Assignments'}
-          </h2>
-          {lastSyncTime && (
-            <p className="text-xs text-slate-500 flex items-center mt-1">
-              <Clock size={12} className="mr-1" /> Data updated: {lastSyncTime}
-            </p>
-          )}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800">
+                {currentUser.role === 'crew' ? 'My Assignments' : 'Field Assignments'}
+              </h2>
+              {lastSyncTime && (
+                <p className="text-xs text-slate-500 flex items-center mt-1">
+                  <Clock size={12} className="mr-1" /> Updated: {lastSyncTime}
+                </p>
+              )}
+            </div>
+
+             <div className="flex items-center gap-3">
+              {(currentUser.role === 'manager' || currentUser.role === 'executive') && (
+                <button
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 shadow-sm transition-colors whitespace-nowrap disabled:opacity-70"
+                >
+                  <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
+                  <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Projects'}</span>
+                </button>
+              )}
+
+              {currentUser.role !== 'crew' && (
+                <button 
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors whitespace-nowrap"
+                >
+                  <Plus size={18} />
+                  <span className="hidden md:inline">New Assignment</span>
+                  <span className="md:hidden">New</span>
+                </button>
+              )}
+            </div>
         </div>
-        
-        <div className="flex items-center gap-3">
-          {/* Filter Tabs */}
-          <div className="flex p-1 bg-slate-200 rounded-lg overflow-x-auto">
-            {['all', 'pending', 'started', 'completed'].map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  filter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1).replace('_', ' ')}
-              </button>
-            ))}
-          </div>
 
-          {(currentUser.role === 'manager' || currentUser.role === 'executive') && (
-            <button
-              onClick={handleSync}
-              disabled={isSyncing}
-              className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 shadow-sm transition-colors whitespace-nowrap disabled:opacity-70"
-            >
-              <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
-              <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Projects'}</span>
-            </button>
-          )}
+        {/* Enhanced Filtering Toolbar */}
+        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+           {/* Search */}
+           <div className="relative w-full md:w-auto md:flex-1 md:max-w-md">
+             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+             <input 
+               type="text" 
+               placeholder="Search by project, address, or crew..." 
+               className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+             />
+           </div>
 
-          {currentUser.role !== 'crew' && (
-            <button 
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors whitespace-nowrap"
-            >
-              <Plus size={18} />
-              <span className="hidden md:inline">New Assignment</span>
-              <span className="md:hidden">New</span>
-            </button>
-          )}
+           <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto">
+             {/* Sort */}
+             <div className="relative">
+                <select 
+                  className="appearance-none pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'date' | 'footage')}
+                >
+                  <option value="date">Sort by Date</option>
+                  <option value="footage">Sort by Footage</option>
+                </select>
+                <SortAsc size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+             </div>
+
+             {/* Status Tabs */}
+             <div className="flex bg-slate-100 p-1 rounded-lg">
+                {['all', 'pending', 'started', 'completed'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-all ${
+                      filter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    {f.charAt(0).toUpperCase() + f.slice(1).replace('_', ' ')}
+                  </button>
+                ))}
+             </div>
+           </div>
         </div>
       </div>
 
@@ -171,7 +236,7 @@ const Assignments: React.FC<AssignmentsProps> = ({ assignments, currentUser, onU
               <Plus size={24} className="text-slate-400" />
             </div>
             <h3 className="text-lg font-medium text-slate-900">No assignments found</h3>
-            <p className="text-slate-500 text-sm mt-1">Check back later or adjust your filters.</p>
+            <p className="text-slate-500 text-sm mt-1">Try adjusting your search or filters.</p>
           </div>
         ) : (
           displayedAssignments.map((assignment) => (

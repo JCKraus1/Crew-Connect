@@ -22,7 +22,7 @@ const DetailItem = ({ label, value }: { label: string, value?: string }) => {
   return (
     <div className="flex flex-col">
       <span className="text-xs text-slate-500 uppercase font-medium">{label}</span>
-      <span className="text-sm text-slate-800 font-semibold">{value}</span>
+      <span className="text-sm text-slate-800 font-semibold whitespace-pre-wrap">{value}</span>
     </div>
   );
 };
@@ -365,6 +365,7 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
                  <DetailItem label="Est. Cost" value={assignment.extendedDetails.estimatedCost} />
                  <DetailItem label="Door Tags" value={assignment.extendedDetails.doorTagDate} />
                  <DetailItem label="Locates" value={assignment.extendedDetails.locatesDate} />
+                 <DetailItem label="Locate Tickets" value={assignment.extendedDetails.locateTickets} />
                  <DetailItem label="SA's" value={assignment.extendedDetails.hhp} />
                  <DetailItem label="Assigned Date" value={assignment.extendedDetails.dateAssigned} />
                  <DetailItem label="Est. Completion" value={assignment.extendedDetails.completionDate} />
@@ -373,18 +374,8 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
               
               {/* Separate Sections for Long Text */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-100">
-                {assignment.extendedDetails.locateTickets && (
-                   <div>
-                     <p className="text-xs text-slate-500 uppercase font-medium mb-1 flex items-center">
-                       <StickyNote size={12} className="mr-1" /> Locate Tickets
-                     </p>
-                     <p className="text-sm text-slate-700 whitespace-pre-line bg-slate-50 p-3 rounded-lg border border-slate-100 font-mono text-xs h-full">
-                       {assignment.extendedDetails.locateTickets}
-                     </p>
-                   </div>
-                )}
                 {assignment.extendedDetails.excelNotes && (
-                   <div>
+                   <div className="md:col-span-2">
                      <p className="text-xs text-slate-500 uppercase font-medium mb-1 flex items-center">
                        <StickyNote size={12} className="mr-1" /> Notes
                      </p>

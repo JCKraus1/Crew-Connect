@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { AlertTriangle, Camera, Plus, X } from 'lucide-react';
+import { AlertTriangle, Camera, Plus, X, Trash2, Edit2 } from 'lucide-react';
 import { Issue, Assignment, User } from '../types';
 
 interface IssuesProps {
@@ -7,27 +8,60 @@ interface IssuesProps {
   assignments: Assignment[];
   currentUser: User;
   onCreateIssue: (issue: any) => void;
+  onUpdateIssue: (id: string, issue: any) => void;
+  onDeleteIssue: (id: string) => void;
 }
 
-const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCreateIssue }) => {
+const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCreateIssue, onUpdateIssue, onDeleteIssue }) => {
   const [showForm, setShowForm] = useState(false);
-  const [newIssue, setNewIssue] = useState({
+  const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
+  const [formData, setFormData] = useState({
     assignmentId: '',
     type: 'Access Problem',
     priority: 'medium',
     description: ''
   });
 
+  const openCreateModal = () => {
+    setEditingIssue(null);
+    setFormData({
+      assignmentId: '',
+      type: 'Access Problem',
+      priority: 'medium',
+      description: ''
+    });
+    setShowForm(true);
+  };
+
+  const openEditModal = (issue: Issue) => {
+    setEditingIssue(issue);
+    setFormData({
+      assignmentId: issue.assignmentId,
+      type: issue.type,
+      priority: issue.priority,
+      description: issue.description
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this issue?")) {
+      onDeleteIssue(id);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onCreateIssue({
-      ...newIssue,
-      reportedBy: currentUser.id,
-      status: 'open'
-    });
+    if (editingIssue) {
+      onUpdateIssue(editingIssue.id, formData);
+    } else {
+      onCreateIssue({
+        ...formData,
+        reportedBy: currentUser.id,
+        status: 'open'
+      });
+    }
     setShowForm(false);
-    // Reset
-    setNewIssue({ assignmentId: '', type: 'Access Problem', priority: 'medium', description: '' });
   };
 
   const priorityColors = {
@@ -42,7 +76,7 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-800">Issue Log</h2>
         <button 
-          onClick={() => setShowForm(true)}
+          onClick={openCreateModal}
           className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 shadow-sm transition-colors"
         >
           <Plus size={18} />
@@ -53,7 +87,7 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
       {/* Issues List */}
       <div className="space-y-3">
         {issues.map((issue) => (
-          <div key={issue.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div key={issue.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 group">
             <div className="flex items-start space-x-3">
               <div className="p-2 bg-red-50 rounded-lg mt-1">
                 <AlertTriangle size={20} className="text-red-600" />
@@ -72,7 +106,7 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
               </div>
             </div>
             
-            <div className="flex items-center space-x-2 md:border-l md:pl-4 border-slate-100">
+            <div className="flex items-center gap-3">
                <span className={`text-sm px-3 py-1 rounded-full border ${
                  issue.status === 'open' ? 'border-red-200 text-red-700 bg-red-50' : 
                  issue.status === 'resolved' ? 'border-green-200 text-green-700 bg-green-50' : 
@@ -80,9 +114,34 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
                }`}>
                  {issue.status.charAt(0).toUpperCase() + issue.status.slice(1)}
                </span>
+               
+               {/* Actions */}
+               {(currentUser.role !== 'crew' || issue.reportedBy === currentUser.id) && (
+                 <div className="flex items-center border-l pl-3 ml-2 space-x-1">
+                    <button 
+                      onClick={() => openEditModal(issue)}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="Edit Issue"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(issue.id)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Delete Issue"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                 </div>
+               )}
             </div>
           </div>
         ))}
+        {issues.length === 0 && (
+          <div className="text-center py-12 border border-dashed border-slate-300 rounded-xl">
+             <p className="text-slate-500">No issues reported.</p>
+          </div>
+        )}
       </div>
 
       {/* Modal Form */}
@@ -90,7 +149,7 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-4">
           <div className="bg-white rounded-t-xl md:rounded-xl w-full max-w-lg shadow-xl animate-slide-up md:animate-scale-in">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-800">Report New Issue</h3>
+              <h3 className="text-lg font-bold text-slate-800">{editingIssue ? 'Edit Issue' : 'Report New Issue'}</h3>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
                 <X size={24} />
               </button>
@@ -102,8 +161,8 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
                 <select 
                   required
                   className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                  value={newIssue.assignmentId}
-                  onChange={e => setNewIssue({...newIssue, assignmentId: e.target.value})}
+                  value={formData.assignmentId}
+                  onChange={e => setFormData({...formData, assignmentId: e.target.value})}
                 >
                   <option value="">Select Assignment...</option>
                   {assignments.map(a => (
@@ -117,22 +176,23 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
                   <label className="block text-sm font-medium text-slate-700 mb-1">Issue Type</label>
                   <select 
                     className="w-full p-2 border border-slate-300 rounded-lg outline-none"
-                    value={newIssue.type}
-                    onChange={e => setNewIssue({...newIssue, type: e.target.value})}
+                    value={formData.type}
+                    onChange={e => setFormData({...formData, type: e.target.value})}
                   >
                     <option>Access Problem</option>
                     <option>Equipment Failure</option>
                     <option>Material Shortage</option>
                     <option>Safety Hazard</option>
                     <option>Utility Conflict</option>
+                    <option>Other</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
                   <select 
                     className="w-full p-2 border border-slate-300 rounded-lg outline-none"
-                    value={newIssue.priority}
-                    onChange={e => setNewIssue({...newIssue, priority: e.target.value})}
+                    value={formData.priority}
+                    onChange={e => setFormData({...formData, priority: e.target.value})}
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -149,22 +209,24 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
                   rows={4}
                   className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="Describe the problem in detail..."
-                  value={newIssue.description}
-                  onChange={e => setNewIssue({...newIssue, description: e.target.value})}
+                  value={formData.description}
+                  onChange={e => setFormData({...formData, description: e.target.value})}
                 ></textarea>
               </div>
 
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 transition-colors cursor-pointer">
-                <Camera size={24} className="mb-2" />
-                <span className="text-sm">Tap to add photo evidence</span>
-              </div>
+              {!editingIssue && (
+                <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 transition-colors cursor-pointer">
+                  <Camera size={24} className="mb-2" />
+                  <span className="text-sm">Tap to add photo evidence</span>
+                </div>
+              )}
 
               <div className="pt-2">
                 <button 
                   type="submit" 
                   className="w-full bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 transition-colors"
                 >
-                  Submit Report
+                  {editingIssue ? 'Save Changes' : 'Submit Report'}
                 </button>
               </div>
             </form>

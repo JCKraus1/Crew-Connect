@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -72,6 +73,16 @@ const App: React.FC = () => {
     refreshData();
   };
 
+  const handleUpdateIssue = (id: string, issue: any) => {
+    dataService.updateIssue(id, issue);
+    refreshData();
+  };
+
+  const handleDeleteIssue = (id: string) => {
+    dataService.deleteIssue(id);
+    refreshData();
+  };
+
   return (
     <HashRouter>
       <Routes>
@@ -124,6 +135,8 @@ const App: React.FC = () => {
                         assignments={assignments} 
                         currentUser={user} 
                         onCreateIssue={handleCreateIssue}
+                        onUpdateIssue={handleUpdateIssue}
+                        onDeleteIssue={handleDeleteIssue}
                       />
                     } 
                   />

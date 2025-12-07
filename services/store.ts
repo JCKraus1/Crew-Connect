@@ -14,6 +14,8 @@ const KEYS = {
   LAST_SYNC: 'cc_last_sync'
 };
 
+const LOCATE_TICKETS_URL = 'https://jckraus1.github.io/Tillman-Dashboard/locate-tickets.xlsx';
+
 // Initialize Store
 const initStore = () => {
   try {
@@ -87,19 +89,31 @@ const formatPercentage = (val: any) => {
 const mapStatus = (statusRaw: any): AssignmentStatus => {
   const s = String(statusRaw || '').toLowerCase().trim();
   
-  // 1. Completion / Payment
-  if (s.includes('complete') || s.includes('paid') || s.includes('invoiced')) return 'completed';
+  if (!s || s === '0' || s === 'null') return 'pending';
+
+  // 1. Locates - Check first to avoid "Locates Complete" triggering 'completed'
+  if (s.includes('locates')) return 'pending';
+
+  // 2. Completion / Payment
+  if (s.includes('complete') || s.includes('paid') || s.includes('invoiced') || s.includes('done')) return 'completed';
   
-  // 2. Active Work
-  if (s.includes('process') || s.includes('started') || s.includes('construction') || s.includes('working')) return 'started';
+  // 3. Active Work
+  if (
+    s.includes('process') || 
+    s.includes('started') || 
+    s.includes('construction') || 
+    s.includes('working') || 
+    s.includes('active') ||
+    s.includes('drilling') ||
+    s.includes('placing')
+  ) return 'started';
   
-  // 3. Blocked / Issues
-  if (s.includes('issue') || s.includes('hold') || s.includes('blocked') || s.includes('pending pw')) return 'blocked';
+  // 4. Blocked / Issues
+  if (s.includes('issue') || s.includes('hold') || s.includes('blocked') || s.includes('stopped')) return 'blocked';
   
-  // 4. Pending / Not Started / Locates
-  if (s.includes('locates') || s.includes('pending') || s.includes('not started') || s === '0') return 'pending';
+  // 5. Default fallback
+  if (s.includes('pending') || s.includes('not started') || s.includes('assigned')) return 'pending';
   
-  // Default fallback
   return 'pending';
 };
 
@@ -233,6 +247,18 @@ export const dataService = {
     localStorage.setItem(KEYS.ISSUES, JSON.stringify(issues));
   },
 
+  updateIssue: (id: string, updates: Partial<Issue>) => {
+    const issues: Issue[] = JSON.parse(localStorage.getItem(KEYS.ISSUES) || '[]');
+    const updated = issues.map(i => i.id === id ? { ...i, ...updates } : i);
+    localStorage.setItem(KEYS.ISSUES, JSON.stringify(updated));
+  },
+
+  deleteIssue: (id: string) => {
+    const issues: Issue[] = JSON.parse(localStorage.getItem(KEYS.ISSUES) || '[]');
+    const filtered = issues.filter(i => i.id !== id);
+    localStorage.setItem(KEYS.ISSUES, JSON.stringify(filtered));
+  },
+
   getMessages: (): Message[] => JSON.parse(localStorage.getItem(KEYS.MESSAGES) || '[]'),
 
   getLastSyncTime: (): string | null => localStorage.getItem(KEYS.LAST_SYNC),
@@ -244,13 +270,65 @@ export const dataService = {
     return (Date.now() - new Date(lastSync).getTime()) > thirtyMinutesMs;
   },
 
-  syncProjectsFromExcel: async (url: string) => {
+  syncProjectsFromExcel: async (projectUrl: string) => {
     try {
-      console.log("Fetching Excel from:", url);
+      console.log("Fetching Main Excel from:", projectUrl);
       
       if (typeof XLSX === 'undefined') throw new Error("Excel processing library (SheetJS) failed to load.");
 
-      const noCacheUrl = `${url}?t=${Date.now()}`;
+      // --- 1. Fetch Secondary Data (Locate Tickets) First ---
+      const locateTicketsMap = new Map<string, string>();
+      try {
+        console.log("Fetching Locate Tickets from:", LOCATE_TICKETS_URL);
+        const locateResponse = await fetch(`${LOCATE_TICKETS_URL}?t=${Date.now()}`);
+        if (locateResponse.ok) {
+          const locateBuffer = await locateResponse.arrayBuffer();
+          const locateWb = XLSX.read(locateBuffer, { type: 'array' });
+          if (locateWb.SheetNames.length > 0) {
+             const locateSheet = locateWb.Sheets[locateWb.SheetNames[0]];
+             
+             // Dynamic Header Search for Locate Tickets File
+             const rawLocateData = XLSX.utils.sheet_to_json(locateSheet, { header: 1 });
+             let headerRowIndex = 0;
+             for(let i=0; i < Math.min(rawLocateData.length, 10); i++) {
+                const rowStr = JSON.stringify(rawLocateData[i]).toLowerCase();
+                if (rowStr.includes('ticket') || rowStr.includes('ntp')) {
+                   headerRowIndex = i;
+                   break;
+                }
+             }
+             
+             const locateRows = XLSX.utils.sheet_to_json(locateSheet, { range: headerRowIndex, defval: "" });
+             
+             locateRows.forEach((row: any) => {
+                const ntp = getRowValue(row, ['NTP', 'Project', 'Job #']);
+                if (ntp) {
+                   const ticket = getRowValue(row, ['Ticket', 'Ticket #', 'Ticket No']);
+                   const expires = getRowValue(row, ['Expires', 'Expiration Date']);
+                   const status = getRowValue(row, ['Status']);
+                   
+                   let info = ticket ? `#${ticket}` : '';
+                   if(expires) info += ` (Exp: ${excelDateToString(expires)})`;
+                   if(status) info += ` [${status}]`;
+                   
+                   if (info) {
+                      const cleanNtp = ntp.toString().trim().toUpperCase();
+                      const existing = locateTicketsMap.get(cleanNtp);
+                      // Append if multiple tickets exist for same job
+                      locateTicketsMap.set(cleanNtp, existing ? `${existing}, ${info}` : info);
+                   }
+                }
+             });
+          }
+        } else {
+           console.warn("Could not fetch locate tickets file.");
+        }
+      } catch (err) {
+        console.warn("Locate tickets processing failed", err);
+      }
+
+      // --- 2. Process Main Project File ---
+      const noCacheUrl = `${projectUrl}?t=${Date.now()}`;
       const response = await fetch(noCacheUrl);
       if (!response.ok) throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
       
@@ -341,7 +419,7 @@ export const dataService = {
         // ---------------------------------
 
         // --- EXTENDED DATA MAPPING ---
-        const constructionStatus = getRowValue(row, ['Construction Status', 'Status', 'Constuction Status']);
+        const constructionStatus = getRowValue(row, ['Construction Status', 'Status', 'Constuction Status', 'Current Status']);
         const areaRaw = getRowValue(row, ['AREA', 'Area', 'Zone']);
         const deadlineRaw = getRowValue(row, ['SOW TSD', 'Deadline', 'Due Date']);
         const estCost = getRowValue(row, ['SOW Cost', 'Cost', 'Est Cost']);
@@ -363,6 +441,14 @@ export const dataService = {
         }
         
         const ntpNumber = ntpRaw.toString().trim();
+        const cleanNtp = ntpNumber.toUpperCase();
+
+        // MERGE LOCATE TICKETS (From second file and main file)
+        const extraTickets = locateTicketsMap.get(cleanNtp);
+        let finalTickets = locateTickets ? String(locateTickets) : '';
+        if (extraTickets) {
+            finalTickets = finalTickets ? `${finalTickets}, ${extraTickets}` : extraTickets;
+        }
 
         // 3. Create Crew User if missing
         let crewId = '';
@@ -445,6 +531,8 @@ export const dataService = {
         
         // TITLE FORMAT UPDATE: "Project {NTP}"
         const validTitle = `Project ${ntpNumber}`;
+        
+        // Use the robust status mapping
         const finalStatus = mapStatus(constructionStatus);
 
         const extendedDetails = {
@@ -457,7 +545,7 @@ export const dataService = {
           hhp: hhp ? String(hhp) : undefined,
           dateAssigned: excelDateToString(dateAssignedRaw),
           completionDate: excelDateToString(completionDateRaw),
-          locateTickets: locateTickets ? String(locateTickets) : undefined,
+          locateTickets: finalTickets, // merged tickets
           percentageComplete: formatPercentage(ugPercentageRaw),
           excelNotes: notesRaw ? String(notesRaw) : undefined
         };
@@ -468,8 +556,10 @@ export const dataService = {
           
           // Only auto-update status if Excel has new data that implies completion or start
           let statusToUse = existing.status;
+          
+          // If the Excel explicitly has a status, use our new robust logic to determine it
           if (constructionStatus) {
-            statusToUse = finalStatus;
+             statusToUse = finalStatus;
           }
 
           const updatedAssignment = {
