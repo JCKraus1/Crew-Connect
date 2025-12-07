@@ -378,9 +378,8 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
                  <DetailItem label="Area" value={assignment.extendedDetails.area} />
                  <DetailItem label="Deadline (TSD)" value={assignment.extendedDetails.deadline} />
                  <DetailItem label="Est. Cost" value={assignment.extendedDetails.estimatedCost} />
-                 <DetailItem label="Door Tags" value={assignment.extendedDetails.doorTagDate} />
-                 <DetailItem label="Locates" value={assignment.extendedDetails.locatesDate} />
-                 <DetailItem label="Locate Tickets" value={assignment.extendedDetails.locateTickets} />
+                 <DetailItem label="Door Tag Date" value={assignment.extendedDetails.doorTagDate} />
+                 <DetailItem label="Locates Date" value={assignment.extendedDetails.locatesDate} />
                  <DetailItem label="SA's" value={assignment.extendedDetails.hhp} />
                  <DetailItem label="Assigned Date" value={assignment.extendedDetails.dateAssigned} />
                  <DetailItem label="Est. Completion" value={assignment.extendedDetails.completionDate} />
