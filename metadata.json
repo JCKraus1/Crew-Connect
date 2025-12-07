@@ -1,0 +1,8 @@
+{
+  "name": "CrewConnect",
+  "description": "A robust PWA for field crew management, daily assignments, and real-time communication for construction operations.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
