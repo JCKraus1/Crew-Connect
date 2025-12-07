@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, MapPin, Sparkles, User as UserIcon, Loader2, Globe } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
+import { dataService } from '../services/store';
 
 interface ChatMessage {
   id: string;
@@ -16,7 +17,7 @@ const Assistant: React.FC = () => {
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I am your Field Assistant. I can help you find nearby suppliers, search the web for specifications, or look up location details. What do you need?',
+      content: 'Hello! I am your Field Assistant. I can help you find nearby suppliers, search the web for specifications, or look up details about your assigned projects. What do you need?',
       timestamp: new Date()
     }
   ]);
@@ -31,6 +32,35 @@ const Assistant: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const generateProjectContext = () => {
+    const assignments = dataService.getAssignments();
+    let projectDataContext = "Here is the current project database for context. Use this to answer questions about specific projects:\n";
+    
+    assignments.forEach(project => {
+        const details = project.extendedDetails || {};
+        // Safely access properties with fallbacks
+        const ntp = project.title;
+        const supervisor = project.supervisorId; // Ideally map to name, but ID works for context matching
+        const status = details.constructionStatus || project.status;
+        const area = details.area || "N/A";
+        const footageRemaining = project.metrics.targetFootage - project.metrics.completedFootage;
+        const percentComplete = details.percentageComplete ? `${Number(details.percentageComplete)*100}%` : "0%";
+        const deadline = details.deadline || "N/A";
+        const cost = details.estimatedCost || "N/A";
+        const doorTag = details.doorTagDate || "N/A";
+        const locates = details.locatesDate || "N/A";
+        const vendor = project.crewId;
+        const hhp = details.hhp || "N/A";
+        const assigned = details.dateAssigned || "N/A";
+        const completion = details.completionDate || "N/A";
+        const tickets = details.locateTickets || "None";
+        const address = project.address;
+
+        projectDataContext += `\n- **${ntp}**\n  Address: ${address}\n  Supervisor: ${supervisor} | Status: ${status} | Area: ${area}\n  Footage Remaining: ${footageRemaining} | Complete: ${percentComplete} | Deadline: ${deadline}\n  Est Cost: ${cost} | Door Tag: ${doorTag} | Locates: ${locates}\n  Vendor: ${vendor} | HHP: ${hhp} | Assigned: ${assigned} | Completion: ${completion}\n  Locate Tickets: ${tickets}\n`;
+    });
+    return projectDataContext;
+  };
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -77,9 +107,13 @@ const Assistant: React.FC = () => {
         };
       }
 
+      // Inject Project Data into Prompt
+      const projectContext = generateProjectContext();
+      const promptWithContext = `${projectContext}\n\nUser Question: ${userMsg.content}`;
+
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: userMsg.content,
+        contents: promptWithContext,
         config: config
       });
 
@@ -110,9 +144,9 @@ const Assistant: React.FC = () => {
   };
 
   const suggestions = [
+    "Status of 5th Ave project?",
+    "Show me locate tickets for Oak Park",
     "Nearest hardware store",
-    "Gas stations nearby",
-    "Code for laying conduit",
     "Safety specs for fiber"
   ];
 

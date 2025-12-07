@@ -282,11 +282,24 @@ export const dataService = {
         const address = getRowValue(row, ['Address', 'Location', 'Site Address', 'Street']);
         
         // --- SPECIFIC FOOTAGE MAPPING ---
-        // Prioritize exact column matches first
         const targetFootageRaw = getRowValue(row, ['Footage UG', 'Footage', 'Total Footage']);
         const completedFootageRaw = getRowValue(row, ['Actual Redline Completed Footage UG', 'Actual Redline Completed Footage', 'Completed Footage']);
         const remainingFootageRaw = getRowValue(row, ['Footage Remaining', 'Remaining Footage']);
         // ---------------------------------
+
+        // --- EXTENDED DATA MAPPING ---
+        const constructionStatus = getRowValue(row, ['Construction Status', 'Status', 'Constuction Status']);
+        const area = getRowValue(row, ['AREA', 'Area', 'Zone']);
+        const deadline = getRowValue(row, ['SOW TSD', 'Deadline', 'Due Date']);
+        const estCost = getRowValue(row, ['SOW Cost', 'Cost', 'Est Cost']);
+        const doorTag = getRowValue(row, ['Door Tag', 'Door Tag Date']);
+        const locateDate = getRowValue(row, ['Locate Date', 'Locates']);
+        const hhp = getRowValue(row, ['HHP', 'HHP (SAs)']);
+        const dateAssigned = getRowValue(row, ['Date Assigned', 'Assigned']);
+        const completionDate = getRowValue(row, ['Completion Date', 'Completion']);
+        const locateTickets = getRowValue(row, ['Locate Tickets', 'Tickets']);
+        const ugPercentage = getRowValue(row, ['UG Percentage Complete', '% Complete']);
+        // -----------------------------
 
         const market = getRowValue(row, ['Market', 'Region', 'Area', 'Zone']);
         
@@ -339,15 +352,27 @@ export const dataService = {
         let completedFootage = parseFootage(completedFootageRaw);
         const remainingFootage = parseFootage(remainingFootageRaw);
 
-        // Fallback calculation logic for completed if missing, but prioritized actual column first
         if (completedFootage === 0 && targetFootage > 0 && remainingFootageRaw !== null && remainingFootageRaw !== undefined && remainingFootageRaw !== "") {
-           // If we have target and remaining, we can calculate completed
            const calculatedCompleted = Math.max(0, targetFootage - remainingFootage);
            if (calculatedCompleted > 0) completedFootage = calculatedCompleted;
         }
         
         const validAddress = address && address !== "0" ? address : 'Location Pending';
         const validTitle = projectTitle || `Project ${ntpNumber}`;
+
+        const extendedDetails = {
+          constructionStatus: constructionStatus ? String(constructionStatus) : undefined,
+          area: area ? String(area) : undefined,
+          deadline: deadline ? String(deadline) : undefined,
+          estimatedCost: estCost ? String(estCost) : undefined,
+          doorTagDate: doorTag ? String(doorTag) : undefined,
+          locatesDate: locateDate ? String(locateDate) : undefined,
+          hhp: hhp ? String(hhp) : undefined,
+          dateAssigned: dateAssigned ? String(dateAssigned) : undefined,
+          completionDate: completionDate ? String(completionDate) : undefined,
+          locateTickets: locateTickets ? String(locateTickets) : undefined,
+          percentageComplete: ugPercentage ? String(ugPercentage) : undefined
+        };
 
         if (existingIndex >= 0) {
           // UPDATE
@@ -362,7 +387,8 @@ export const dataService = {
               ...existing.metrics,
               targetFootage: targetFootage > 0 ? targetFootage : existing.metrics.targetFootage,
               completedFootage: completedFootage > 0 ? completedFootage : existing.metrics.completedFootage
-            }
+            },
+            extendedDetails: { ...existing.extendedDetails, ...extendedDetails }
           };
           if (JSON.stringify(existing) !== JSON.stringify(updatedAssignment)) {
              assignments[existingIndex] = updatedAssignment;
@@ -383,7 +409,8 @@ export const dataService = {
             description: `Imported via Sync.\nNTP: ${ntpNumber}\nDesc: ${validTitle}`,
             metrics: { targetFootage: targetFootage, completedFootage: completedFootage },
             notes: [],
-            history: [{ status: 'pending', timestamp: new Date().toISOString(), updatedBy: 'system', notes: 'Imported via Excel Sync' }]
+            history: [{ status: 'pending', timestamp: new Date().toISOString(), updatedBy: 'system', notes: 'Imported via Excel Sync' }],
+            extendedDetails: extendedDetails
           };
           assignments.push(newAssignment);
           newAssignmentsCount++;

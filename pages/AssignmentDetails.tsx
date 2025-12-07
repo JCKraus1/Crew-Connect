@@ -16,6 +16,16 @@ interface AssignmentDetailsProps {
   onUpdateStatus: (id: string, status: any, notes?: string, footage?: number, photos?: string[]) => void;
 }
 
+const DetailItem = ({ label, value }: { label: string, value?: string }) => {
+  if (!value) return null;
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs text-slate-500 uppercase font-medium">{label}</span>
+      <span className="text-sm text-slate-800 font-semibold">{value}</span>
+    </div>
+  );
+};
+
 const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUpdateStatus }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -334,11 +344,41 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
               </div>
             </div>
           </div>
+          
+          {/* Extended Details Grid */}
+          {assignment.extendedDetails && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+              <h3 className="font-bold text-slate-800 mb-4 flex items-center">
+                <Activity size={20} className="mr-2 text-blue-600" />
+                Project Data
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
+                 <DetailItem label="Status" value={assignment.extendedDetails.constructionStatus} />
+                 <DetailItem label="Area" value={assignment.extendedDetails.area} />
+                 <DetailItem label="Deadline (TSD)" value={assignment.extendedDetails.deadline} />
+                 <DetailItem label="Est. Cost" value={assignment.extendedDetails.estimatedCost} />
+                 <DetailItem label="Door Tags" value={assignment.extendedDetails.doorTagDate} />
+                 <DetailItem label="Locates" value={assignment.extendedDetails.locatesDate} />
+                 <DetailItem label="HHP (SAs)" value={assignment.extendedDetails.hhp} />
+                 <DetailItem label="Assigned Date" value={assignment.extendedDetails.dateAssigned} />
+                 <DetailItem label="Est. Completion" value={assignment.extendedDetails.completionDate} />
+                 <DetailItem label="% Complete" value={assignment.extendedDetails.percentageComplete ? `${Number(assignment.extendedDetails.percentageComplete) * 100}%` : undefined} />
+              </div>
+              {assignment.extendedDetails.locateTickets && (
+                 <div className="mt-4 pt-4 border-t border-slate-100">
+                   <p className="text-xs text-slate-500 uppercase font-medium mb-1">Locate Tickets</p>
+                   <p className="text-sm text-slate-700 whitespace-pre-line bg-slate-50 p-3 rounded-lg border border-slate-100 font-mono text-xs">
+                     {assignment.extendedDetails.locateTickets}
+                   </p>
+                 </div>
+              )}
+            </div>
+          )}
 
           {/* Activity/History Timeline */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <h3 className="font-bold text-slate-800 mb-6 flex items-center">
-              <Activity size={20} className="mr-2 text-slate-400" /> 
+              <Clock size={20} className="mr-2 text-slate-400" /> 
               Activity Timeline
             </h3>
             
