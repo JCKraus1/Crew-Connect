@@ -45,7 +45,7 @@ const Assistant: React.FC = () => {
         const status = details.constructionStatus || project.status;
         const area = details.area || "N/A";
         const footageRemaining = project.metrics.targetFootage - project.metrics.completedFootage;
-        const percentComplete = details.percentageComplete ? `${Number(details.percentageComplete)*100}%` : "0%";
+        const percentComplete = details.percentageComplete ? `${details.percentageComplete}%` : "0%";
         const deadline = details.deadline || "N/A";
         const cost = details.estimatedCost || "N/A";
         const doorTag = details.doorTagDate || "N/A";
@@ -55,9 +55,10 @@ const Assistant: React.FC = () => {
         const assigned = details.dateAssigned || "N/A";
         const completion = details.completionDate || "N/A";
         const tickets = details.locateTickets || "None";
+        const notes = details.excelNotes || "None";
         const address = project.address;
 
-        projectDataContext += `\n- **${ntp}**\n  Address: ${address}\n  Supervisor: ${supervisor} | Status: ${status} | Area: ${area}\n  Footage Remaining: ${footageRemaining} | Complete: ${percentComplete} | Deadline: ${deadline}\n  Est Cost: ${cost} | Door Tag: ${doorTag} | Locates: ${locates}\n  Vendor: ${vendor} | HHP: ${hhp} | Assigned: ${assigned} | Completion: ${completion}\n  Locate Tickets: ${tickets}\n`;
+        projectDataContext += `\n- **${ntp}** | Supervisor: ${supervisor} | Status: ${status} | Area: ${area} | Footage Remaining: ${footageRemaining} | Complete: ${percentComplete} | Deadline (TSD): ${deadline} | Est Cost: ${cost} | Door Tag: ${doorTag} | Locates: ${locates} | Vendor: ${vendor} | HHP (SAs): ${hhp} | Assigned: ${assigned} | Completion: ${completion} \n  Locate Tickets: ${tickets} \n  Notes: ${notes}`;
     });
     return projectDataContext;
   };

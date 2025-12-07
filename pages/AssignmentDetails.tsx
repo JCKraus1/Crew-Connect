@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, MapPin, Calendar, User, Clock, CheckCircle, 
   Truck, Play, AlertCircle, Edit2, Save, X, Activity, HardHat,
-  Navigation, Camera, Image as ImageIcon, Trash2
+  Navigation, Camera, Image as ImageIcon, Trash2, StickyNote
 } from 'lucide-react';
 import { Assignment, User as UserType } from '../types';
 import { dataService } from '../services/store';
@@ -155,8 +156,13 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
   };
 
   const openNavigation = () => {
-    const { lat, lng } = assignment.location;
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    // Use the actual address string or Area for navigation
+    // This provides better results than lat/lng if lat/lng are generic
+    const navQuery = assignment.address && assignment.address !== 'Location Pending' 
+      ? assignment.address 
+      : (assignment.extendedDetails?.area || `${assignment.location.lat},${assignment.location.lng}`);
+      
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(navQuery)}`, '_blank');
   };
 
   const assignedCrew = crews.find(c => c.id === assignment.crewId);
@@ -353,25 +359,41 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
                 Project Data
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
-                 <DetailItem label="Status" value={assignment.extendedDetails.constructionStatus} />
+                 <DetailItem label="Permit" value={assignment.extendedDetails.constructionStatus} />
                  <DetailItem label="Area" value={assignment.extendedDetails.area} />
                  <DetailItem label="Deadline (TSD)" value={assignment.extendedDetails.deadline} />
                  <DetailItem label="Est. Cost" value={assignment.extendedDetails.estimatedCost} />
                  <DetailItem label="Door Tags" value={assignment.extendedDetails.doorTagDate} />
                  <DetailItem label="Locates" value={assignment.extendedDetails.locatesDate} />
-                 <DetailItem label="HHP (SAs)" value={assignment.extendedDetails.hhp} />
+                 <DetailItem label="SA's" value={assignment.extendedDetails.hhp} />
                  <DetailItem label="Assigned Date" value={assignment.extendedDetails.dateAssigned} />
                  <DetailItem label="Est. Completion" value={assignment.extendedDetails.completionDate} />
-                 <DetailItem label="% Complete" value={assignment.extendedDetails.percentageComplete ? `${Number(assignment.extendedDetails.percentageComplete) * 100}%` : undefined} />
+                 <DetailItem label="% Complete" value={assignment.extendedDetails.percentageComplete ? `${assignment.extendedDetails.percentageComplete}%` : undefined} />
               </div>
-              {assignment.extendedDetails.locateTickets && (
-                 <div className="mt-4 pt-4 border-t border-slate-100">
-                   <p className="text-xs text-slate-500 uppercase font-medium mb-1">Locate Tickets</p>
-                   <p className="text-sm text-slate-700 whitespace-pre-line bg-slate-50 p-3 rounded-lg border border-slate-100 font-mono text-xs">
-                     {assignment.extendedDetails.locateTickets}
-                   </p>
-                 </div>
-              )}
+              
+              {/* Separate Sections for Long Text */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-100">
+                {assignment.extendedDetails.locateTickets && (
+                   <div>
+                     <p className="text-xs text-slate-500 uppercase font-medium mb-1 flex items-center">
+                       <StickyNote size={12} className="mr-1" /> Locate Tickets
+                     </p>
+                     <p className="text-sm text-slate-700 whitespace-pre-line bg-slate-50 p-3 rounded-lg border border-slate-100 font-mono text-xs h-full">
+                       {assignment.extendedDetails.locateTickets}
+                     </p>
+                   </div>
+                )}
+                {assignment.extendedDetails.excelNotes && (
+                   <div>
+                     <p className="text-xs text-slate-500 uppercase font-medium mb-1 flex items-center">
+                       <StickyNote size={12} className="mr-1" /> Notes
+                     </p>
+                     <p className="text-sm text-slate-700 whitespace-pre-line bg-amber-50 p-3 rounded-lg border border-amber-100 h-full">
+                       {assignment.extendedDetails.excelNotes}
+                     </p>
+                   </div>
+                )}
+              </div>
             </div>
           )}
 

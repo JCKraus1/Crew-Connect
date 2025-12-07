@@ -37,6 +37,7 @@ export interface ExtendedDetails {
   locateTickets?: string;
   percentageComplete?: string;
   projectHealth?: string;
+  excelNotes?: string; // New field for Excel notes
 }
 
 export interface Assignment {
