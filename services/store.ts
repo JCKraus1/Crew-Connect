@@ -86,18 +86,25 @@ const formatPercentage = (val: any) => {
 };
 
 // Helper: Map Construction Status to App Status
-const mapStatus = (statusRaw: any): AssignmentStatus => {
+export const mapStatus = (statusRaw: any): AssignmentStatus => {
   const s = String(statusRaw || '').toLowerCase().trim();
   
   if (!s || s === '0' || s === 'null') return 'pending';
 
-  // 1. Locates - Check first to avoid "Locates Complete" triggering 'completed'
-  if (s.includes('locates')) return 'pending';
+  // 1. Blocked / Issues
+  if (s.includes('issue') || s.includes('hold') || s.includes('blocked') || s.includes('stopped')) return 'blocked';
 
   // 2. Completion / Payment
-  if (s.includes('complete') || s.includes('paid') || s.includes('invoiced') || s.includes('done')) return 'completed';
+  // Must check "Complete" carefully to ensure it's not "Locates Complete" if that implies pending
+  // But usually "Locates Complete" is a specific phrase. 
+  // If status is JUST "Complete", it's completed.
+  if (s === 'complete' || s === 'completed' || s.includes('paid') || s.includes('invoiced') || s.includes('done')) return 'completed';
   
-  // 3. Active Work
+  // 3. Pending / Locates
+  // "Locates Called" -> Pending
+  if (s.includes('locates') || s.includes('pending') || s.includes('not started') || s.includes('assigned')) return 'pending';
+
+  // 4. Active Work (In Process -> Started)
   if (
     s.includes('process') || 
     s.includes('started') || 
@@ -108,12 +115,7 @@ const mapStatus = (statusRaw: any): AssignmentStatus => {
     s.includes('placing')
   ) return 'started';
   
-  // 4. Blocked / Issues
-  if (s.includes('issue') || s.includes('hold') || s.includes('blocked') || s.includes('stopped')) return 'blocked';
-  
   // 5. Default fallback
-  if (s.includes('pending') || s.includes('not started') || s.includes('assigned')) return 'pending';
-  
   return 'pending';
 };
 
@@ -306,7 +308,7 @@ export const dataService = {
                 const ntp = getRowValue(row, ['Map #', 'Map', 'Project', 'Job #']);
                 
                 if (ntp) {
-                   // Extract up to 4 tickets
+                   // Extract up to 4 tickets based on specific column names requested
                    const t1 = getRowValue(row, ['1st locate ticket', 'LOCATE TICKET']);
                    const t2 = getRowValue(row, ['2ND TICKET', '2nd locate ticket']);
                    const t3 = getRowValue(row, ['3RD TICKET', '3rd locate ticket']);

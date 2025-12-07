@@ -192,17 +192,24 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
           
           <div className="flex items-center space-x-3">
             {isEditing ? (
-              <select
-                className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium border border-slate-300 outline-none bg-white"
-                value={editForm.status}
-                onChange={e => setEditForm({...editForm, status: e.target.value as any})}
-              >
-                <option value="pending">Pending</option>
-                <option value="en_route">En Route</option>
-                <option value="started">Started</option>
-                <option value="blocked">Blocked</option>
-                <option value="completed">Completed</option>
-              </select>
+              <div className="flex flex-col items-start">
+                <select
+                  className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium border border-slate-300 outline-none bg-white"
+                  value={editForm.status}
+                  onChange={e => setEditForm({...editForm, status: e.target.value as any})}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="en_route">En Route</option>
+                  <option value="started">Started</option>
+                  <option value="blocked">Blocked</option>
+                  <option value="completed">Completed</option>
+                </select>
+                {assignment.extendedDetails?.constructionStatus && (
+                  <span className="text-[10px] text-slate-500 mt-1">
+                    Excel Status: <span className="font-semibold">{assignment.extendedDetails.constructionStatus}</span>
+                  </span>
+                )}
+              </div>
             ) : (
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize
                 ${assignment.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 
