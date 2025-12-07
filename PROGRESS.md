@@ -49,9 +49,10 @@
 - **Data Handling**: SheetJS (Excel), Leaflet (Maps)
 - **AI**: Google GenAI SDK
 
-### Data Layer
-- **Persistence**: `localStorage` (simulated database).
-- **Service Layer**: Centralized `store.ts` for all data operations.
+### Deployment
+- **Method**: GitHub Pages (via `gh-pages` CLI).
+- **Tool**: `npm run deploy` script.
+- **Base Path**: `/Crew-Connect/` (Configured in vite.config.ts).
 
 ---
 

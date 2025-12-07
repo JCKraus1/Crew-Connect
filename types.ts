@@ -24,6 +24,22 @@ export interface AssignmentHistoryEntry {
   photos?: string[]; // Base64 strings
 }
 
+export interface ExtendedDetails {
+  constructionStatus?: string;
+  area?: string;
+  deadline?: string;
+  estimatedCost?: string;
+  doorTagDate?: string;
+  locatesDate?: string;
+  hhp?: string;
+  dateAssigned?: string;
+  completionDate?: string;
+  locateTickets?: string;
+  percentageComplete?: string;
+  projectHealth?: string;
+  excelNotes?: string; // New field for Excel notes
+}
+
 export interface Assignment {
   id: string;
   title: string;
@@ -31,7 +47,7 @@ export interface Assignment {
   location: { lat: number; lng: number };
   crewId: string;
   supervisorId: string;
-  market?: string; // New field for Excel data analysis
+  market?: string; 
   status: AssignmentStatus;
   scheduledDate: string;
   description: string;
@@ -41,6 +57,7 @@ export interface Assignment {
   };
   notes: string[];
   history: AssignmentHistoryEntry[];
+  extendedDetails?: ExtendedDetails; // New field for expanded excel data
 }
 
 export type IssuePriority = 'low' | 'medium' | 'high' | 'critical';

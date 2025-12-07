@@ -1,3 +1,4 @@
+
 import { User, Assignment, Issue, Message, AssignmentStatus, UserRole, AssignmentHistoryEntry } from '../types';
 import { MOCK_USERS, MOCK_ASSIGNMENTS, MOCK_ISSUES, MOCK_MESSAGES } from './mockData';
 
@@ -12,6 +13,8 @@ const KEYS = {
   MESSAGES: 'cc_messages',
   LAST_SYNC: 'cc_last_sync'
 };
+
+const LOCATE_TICKETS_URL = 'https://jckraus1.github.io/Tillman-Dashboard/locate-tickets.xlsx';
 
 // Initialize Store
 const initStore = () => {
@@ -48,6 +51,70 @@ const getRowValue = (row: any, possibleKeys: string[]) => {
     }
   }
   return null;
+};
+
+// Helper: Convert Excel Serial Date to String
+const excelDateToString = (serial: any) => {
+  if (!serial) return undefined;
+  if (typeof serial === 'string') return serial;
+  // Excel base date logic
+  if (typeof serial === 'number') {
+    if (serial > 20000) { // arbitrary check to ensure it looks like a date serial
+       const utc_days  = Math.floor(serial - 25569);
+       const utc_value = utc_days * 86400;                                        
+       const date_info = new Date(utc_value * 1000);
+       // Adjusting for timezone to get simple MM/DD/YYYY
+       const d = new Date(Math.round((serial - 25569)*86400*1000));
+       // Use UTC methods to avoid timezone shifts from 1899 epoch
+       const month = d.getUTCMonth() + 1;
+       const day = d.getUTCDate();
+       const year = d.getUTCFullYear();
+       return `${month}/${day}/${year}`;
+    }
+  }
+  return String(serial);
+};
+
+// Helper: Format Percentage (remove decimals)
+const formatPercentage = (val: any) => {
+  if (val === undefined || val === null || val === '') return undefined;
+  const num = parseFloat(val);
+  if (isNaN(num)) return val;
+  // If decimal <= 1, treat as ratio (0.5 = 50), else treat as integer (50 = 50)
+  const pct = num <= 1.0 ? num * 100 : num;
+  return Math.round(pct).toString();
+};
+
+// Helper: Map Construction Status to App Status
+const mapStatus = (statusRaw: any): AssignmentStatus => {
+  const s = String(statusRaw || '').toLowerCase().trim();
+  
+  if (!s || s === '0' || s === 'null') return 'pending';
+
+  // 1. Locates - Check first to avoid "Locates Complete" triggering 'completed'
+  if (s.includes('locates')) return 'pending';
+
+  // 2. Completion / Payment
+  if (s.includes('complete') || s.includes('paid') || s.includes('invoiced') || s.includes('done')) return 'completed';
+  
+  // 3. Active Work
+  if (
+    s.includes('process') || 
+    s.includes('started') || 
+    s.includes('construction') || 
+    s.includes('working') || 
+    s.includes('active') ||
+    s.includes('drilling') ||
+    s.includes('placing')
+  ) return 'started';
+  
+  // 4. Blocked / Issues
+  if (s.includes('issue') || s.includes('hold') || s.includes('blocked') || s.includes('stopped')) return 'blocked';
+  
+  // 5. Default fallback
+  if (s.includes('pending') || s.includes('not started') || s.includes('assigned')) return 'pending';
+  
+  return 'pending';
 };
 
 export const dataService = {
@@ -180,6 +247,18 @@ export const dataService = {
     localStorage.setItem(KEYS.ISSUES, JSON.stringify(issues));
   },
 
+  updateIssue: (id: string, updates: Partial<Issue>) => {
+    const issues: Issue[] = JSON.parse(localStorage.getItem(KEYS.ISSUES) || '[]');
+    const updated = issues.map(i => i.id === id ? { ...i, ...updates } : i);
+    localStorage.setItem(KEYS.ISSUES, JSON.stringify(updated));
+  },
+
+  deleteIssue: (id: string) => {
+    const issues: Issue[] = JSON.parse(localStorage.getItem(KEYS.ISSUES) || '[]');
+    const filtered = issues.filter(i => i.id !== id);
+    localStorage.setItem(KEYS.ISSUES, JSON.stringify(filtered));
+  },
+
   getMessages: (): Message[] => JSON.parse(localStorage.getItem(KEYS.MESSAGES) || '[]'),
 
   getLastSyncTime: (): string | null => localStorage.getItem(KEYS.LAST_SYNC),
@@ -191,13 +270,79 @@ export const dataService = {
     return (Date.now() - new Date(lastSync).getTime()) > thirtyMinutesMs;
   },
 
-  syncProjectsFromExcel: async (url: string) => {
+  syncProjectsFromExcel: async (projectUrl: string) => {
     try {
-      console.log("Fetching Excel from:", url);
+      console.log("Fetching Main Excel from:", projectUrl);
       
       if (typeof XLSX === 'undefined') throw new Error("Excel processing library (SheetJS) failed to load.");
 
-      const noCacheUrl = `${url}?t=${Date.now()}`;
+      // --- 1. Fetch Secondary Data (Locate Tickets) First ---
+      const locateTicketsMap = new Map<string, string>();
+      try {
+        console.log("Fetching Locate Tickets from:", LOCATE_TICKETS_URL);
+        const locateResponse = await fetch(`${LOCATE_TICKETS_URL}?t=${Date.now()}`);
+        if (locateResponse.ok) {
+          const locateBuffer = await locateResponse.arrayBuffer();
+          const locateWb = XLSX.read(locateBuffer, { type: 'array' });
+          if (locateWb.SheetNames.length > 0) {
+             const locateSheet = locateWb.Sheets[locateWb.SheetNames[0]];
+             
+             // Dynamic Header Search for Locate Tickets File
+             const rawLocateData = XLSX.utils.sheet_to_json(locateSheet, { header: 1 });
+             let headerRowIndex = 0;
+             for(let i=0; i < Math.min(rawLocateData.length, 20); i++) {
+                const rowStr = JSON.stringify(rawLocateData[i]).toLowerCase();
+                // "Map #" is the new project identifier, or look for Ticket headers
+                if (rowStr.includes('map #') || rowStr.includes('1st locate ticket')) {
+                   headerRowIndex = i;
+                   break;
+                }
+             }
+             
+             const locateRows = XLSX.utils.sheet_to_json(locateSheet, { range: headerRowIndex, defval: "" });
+             
+             locateRows.forEach((row: any) => {
+                // Project Number comes from 'Map #'
+                const ntp = getRowValue(row, ['Map #', 'Map', 'Project', 'Job #']);
+                
+                if (ntp) {
+                   // Extract up to 4 tickets
+                   const t1 = getRowValue(row, ['1st locate ticket', 'LOCATE TICKET']);
+                   const t2 = getRowValue(row, ['2ND TICKET', '2nd locate ticket']);
+                   const t3 = getRowValue(row, ['3RD TICKET', '3rd locate ticket']);
+                   const t4 = getRowValue(row, ['4TH TICKET', '4th locate ticket']);
+                   const phone = getRowValue(row, ['LOCATE NUMBER', 'Phone', 'Number']);
+                   
+                   const tickets = [t1, t2, t3, t4].filter(t => t && String(t).trim().length > 0);
+                   
+                   let info = tickets.length > 0 ? tickets.join(', ') : '';
+                   
+                   if (phone) {
+                      info += info ? ` (Ph: ${phone})` : `Ph: ${phone}`;
+                   }
+                   
+                   if (info) {
+                      const cleanNtp = ntp.toString().trim().toUpperCase();
+                      const existing = locateTicketsMap.get(cleanNtp);
+                      // Avoid duplicates if row is repeated
+                      if (existing && !existing.includes(info)) {
+                           locateTicketsMap.set(cleanNtp, `${existing} | ${info}`);
+                      } else if (!existing) {
+                           locateTicketsMap.set(cleanNtp, info);
+                      }
+                   }
+                }
+             });
+          }
+        } else {
+           console.warn("Could not fetch locate tickets file.");
+        }
+      } catch (err) {
+        console.warn("Locate tickets processing failed", err);
+      }
+
+      // --- 2. Process Main Project File ---
+      const noCacheUrl = `${projectUrl}?t=${Date.now()}`;
       const response = await fetch(noCacheUrl);
       if (!response.ok) throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
       
@@ -277,16 +422,30 @@ export const dataService = {
         // 2. Map Columns (Specific requests added)
         const ntpRaw = getRowValue(row, ['NTP Number', 'NTP', 'Project ID', 'Job #']);
         const vendorNameRaw = getRowValue(row, ['Vendor', 'Crew', 'Assignee', 'Contractor', 'Assigned To']);
-        const supervisorName = getRowValue(row, ['Supervisor', 'Field Super', 'Sup', 'Manager']);
+        const supervisorNameRaw = getRowValue(row, ['Supervisor', 'Field Super', 'Sup', 'Manager']);
         const projectTitle = getRowValue(row, ['Project Name', 'Job Name', 'Site Name', 'Description']);
-        const address = getRowValue(row, ['Address', 'Location', 'Site Address', 'Street']);
+        const addressRaw = getRowValue(row, ['Address', 'Location', 'Site Address', 'Street']);
         
         // --- SPECIFIC FOOTAGE MAPPING ---
-        // Prioritize exact column matches first
         const targetFootageRaw = getRowValue(row, ['Footage UG', 'Footage', 'Total Footage']);
         const completedFootageRaw = getRowValue(row, ['Actual Redline Completed Footage UG', 'Actual Redline Completed Footage', 'Completed Footage']);
         const remainingFootageRaw = getRowValue(row, ['Footage Remaining', 'Remaining Footage']);
         // ---------------------------------
+
+        // --- EXTENDED DATA MAPPING ---
+        const constructionStatus = getRowValue(row, ['Construction Status', 'Status', 'Constuction Status', 'Current Status']);
+        const areaRaw = getRowValue(row, ['AREA', 'Area', 'Zone']);
+        const deadlineRaw = getRowValue(row, ['SOW TSD', 'Deadline', 'Due Date']);
+        const estCost = getRowValue(row, ['SOW Cost', 'Cost', 'Est Cost']);
+        const doorTagRaw = getRowValue(row, ['Door Tag', 'Door Tag Date']);
+        const locateDateRaw = getRowValue(row, ['Locate Date', 'Locates']);
+        const hhp = getRowValue(row, ['HHP', 'HHP (SAs)']);
+        const dateAssignedRaw = getRowValue(row, ['Date Assigned', 'Assigned']);
+        const completionDateRaw = getRowValue(row, ['Completion Date', 'Completion']);
+        const locateTickets = getRowValue(row, ['Locate Tickets', 'Tickets']);
+        const ugPercentageRaw = getRowValue(row, ['UG Percentage Complete', '% Complete']);
+        const notesRaw = getRowValue(row, ['Notes', 'Comments', 'Project Notes', 'Status Notes']);
+        // -----------------------------
 
         const market = getRowValue(row, ['Market', 'Region', 'Area', 'Zone']);
         
@@ -296,13 +455,21 @@ export const dataService = {
         }
         
         const ntpNumber = ntpRaw.toString().trim();
+        const cleanNtp = ntpNumber.toUpperCase();
 
-        // 3. Create User if missing
+        // MERGE LOCATE TICKETS (From second file and main file)
+        const extraTickets = locateTicketsMap.get(cleanNtp);
+        let finalTickets = locateTickets ? String(locateTickets) : '';
+        if (extraTickets) {
+            finalTickets = finalTickets ? `${finalTickets}, ${extraTickets}` : extraTickets;
+        }
+
+        // 3. Create Crew User if missing
         let crewId = '';
         if (vendorNameRaw) {
           const vNameClean = vendorNameRaw.toString().trim();
           if (vNameClean && vNameClean.toLowerCase() !== 'tbd' && vNameClean.length > 2) {
-            let vendorUser = users.find(u => u.name.toLowerCase().includes(vNameClean.toLowerCase()));
+            let vendorUser = users.find(u => u.name.toLowerCase().includes(vNameClean.toLowerCase()) && u.role === 'crew');
 
             if (!vendorUser) {
               const newId = `u${Date.now()}${Math.floor(Math.random() * 10000)}`;
@@ -324,11 +491,43 @@ export const dataService = {
           }
         }
 
-        // 4. Supervisor Logic
+        // 4. Supervisor Logic - Auto Create if missing
         let supervisorId = defaultSupervisorId;
-        if (supervisorName) {
-           const sUser = users.find(u => u.name.toLowerCase().includes(supervisorName.toString().toLowerCase()) && u.role === 'supervisor');
-           if (sUser) supervisorId = sUser.id;
+        if (supervisorNameRaw) {
+           const sNameClean = supervisorNameRaw.toString().trim();
+           if (sNameClean && sNameClean.toLowerCase() !== 'tbd') {
+             let sUser = users.find(u => u.name.toLowerCase().includes(sNameClean.toLowerCase()) && u.role === 'supervisor');
+             
+             if (!sUser) {
+               // Create new supervisor
+               const newId = `u${Date.now()}${Math.floor(Math.random() * 10000)}`;
+               const safeName = sNameClean.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9.]/g, '').toLowerCase();
+               sUser = {
+                 id: newId,
+                 name: sNameClean,
+                 email: `${safeName}@lightspeed.com`,
+                 role: 'supervisor',
+                 market: market || 'General',
+                 password: 'Welcome1',
+                 isTempPassword: true,
+                 avatar: ''
+               };
+               users.push(sUser);
+               newUsersCount++;
+               console.log("Created new supervisor:", sNameClean);
+             }
+             supervisorId = sUser.id;
+           }
+        }
+
+        // 5. Determine Address
+        // User requested: "area = location and should be used for maps"
+        // If specific address is missing or "0", try to use Area as the location
+        let validAddress = 'Location Pending';
+        if (addressRaw && addressRaw !== "0") {
+          validAddress = addressRaw;
+        } else if (areaRaw && areaRaw !== "0") {
+          validAddress = areaRaw.toString();
         }
 
         const existingIndex = assignments.findIndex(a => a.title.includes(ntpNumber));
@@ -339,31 +538,61 @@ export const dataService = {
         let completedFootage = parseFootage(completedFootageRaw);
         const remainingFootage = parseFootage(remainingFootageRaw);
 
-        // Fallback calculation logic for completed if missing, but prioritized actual column first
         if (completedFootage === 0 && targetFootage > 0 && remainingFootageRaw !== null && remainingFootageRaw !== undefined && remainingFootageRaw !== "") {
-           // If we have target and remaining, we can calculate completed
            const calculatedCompleted = Math.max(0, targetFootage - remainingFootage);
            if (calculatedCompleted > 0) completedFootage = calculatedCompleted;
         }
         
-        const validAddress = address && address !== "0" ? address : 'Location Pending';
-        const validTitle = projectTitle || `Project ${ntpNumber}`;
+        // TITLE FORMAT UPDATE: "Project {NTP}"
+        const validTitle = `Project ${ntpNumber}`;
+        
+        // Use the robust status mapping
+        const finalStatus = mapStatus(constructionStatus);
+
+        const extendedDetails = {
+          constructionStatus: constructionStatus ? String(constructionStatus) : undefined,
+          area: areaRaw ? String(areaRaw) : undefined,
+          deadline: excelDateToString(deadlineRaw),
+          estimatedCost: estCost ? String(estCost) : undefined,
+          doorTagDate: excelDateToString(doorTagRaw),
+          locatesDate: excelDateToString(locateDateRaw),
+          hhp: hhp ? String(hhp) : undefined,
+          dateAssigned: excelDateToString(dateAssignedRaw),
+          completionDate: excelDateToString(completionDateRaw),
+          locateTickets: finalTickets, // merged tickets
+          percentageComplete: formatPercentage(ugPercentageRaw),
+          excelNotes: notesRaw ? String(notesRaw) : undefined
+        };
 
         if (existingIndex >= 0) {
           // UPDATE
           const existing = assignments[existingIndex];
+          
+          // Only auto-update status if Excel has new data that implies completion or start
+          let statusToUse = existing.status;
+          
+          // If the Excel explicitly has a status, use our new robust logic to determine it
+          if (constructionStatus) {
+             statusToUse = finalStatus;
+          }
+
           const updatedAssignment = {
             ...existing,
+            title: validTitle, // Ensure title format is updated
             address: validAddress !== 'Location Pending' ? validAddress : existing.address,
             market: market || existing.market,
             crewId: crewId || existing.crewId,
             supervisorId: supervisorId || existing.supervisorId,
+            status: statusToUse, // Update status based on Excel
             metrics: {
               ...existing.metrics,
               targetFootage: targetFootage > 0 ? targetFootage : existing.metrics.targetFootage,
               completedFootage: completedFootage > 0 ? completedFootage : existing.metrics.completedFootage
-            }
+            },
+            extendedDetails: { ...existing.extendedDetails, ...extendedDetails }
           };
+          
+          // Basic equality check to avoid unnecessary writes
           if (JSON.stringify(existing) !== JSON.stringify(updatedAssignment)) {
              assignments[existingIndex] = updatedAssignment;
              updatedAssignmentsCount++;
@@ -372,18 +601,19 @@ export const dataService = {
           // CREATE
           const newAssignment: Assignment = {
             id: `a${Date.now()}${Math.floor(Math.random() * 10000)}`,
-            title: `NTP: ${ntpNumber} - ${validTitle}`,
+            title: validTitle,
             address: validAddress,
-            location: { lat: 39.7817, lng: -89.6501 },
+            location: { lat: 39.7817, lng: -89.6501 }, // Mock lat/lng, will be overridden by address queries
             crewId: crewId,
             supervisorId: supervisorId,
             market: market || 'General',
-            status: 'pending',
+            status: finalStatus,
             scheduledDate: new Date().toISOString().split('T')[0],
-            description: `Imported via Sync.\nNTP: ${ntpNumber}\nDesc: ${validTitle}`,
+            description: `Imported via Sync.\nNTP: ${ntpNumber}\nDesc: ${projectTitle || 'No Description'}`,
             metrics: { targetFootage: targetFootage, completedFootage: completedFootage },
             notes: [],
-            history: [{ status: 'pending', timestamp: new Date().toISOString(), updatedBy: 'system', notes: 'Imported via Excel Sync' }]
+            history: [{ status: finalStatus, timestamp: new Date().toISOString(), updatedBy: 'system', notes: 'Imported via Excel Sync' }],
+            extendedDetails: extendedDetails
           };
           assignments.push(newAssignment);
           newAssignmentsCount++;

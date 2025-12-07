@@ -1,48 +1,38 @@
-# How to Deploy CrewConnect
+# Deployment Guide (Local CLI)
 
-The app uses TypeScript and React, which means it **must be built** before it can run in a browser. You cannot simply upload the `.tsx` files to GitHub Pages.
+Since you have Node.js installed, you can deploy directly from your command prompt.
 
-## Step 1: Install Node.js
-If you haven't already, install Node.js from [nodejs.org](https://nodejs.org/).
+## Prerequisites
 
-## Step 2: Install Dependencies
-Open your terminal (Command Prompt or Terminal) in this project folder and run:
-```bash
-npm install
-```
-
-## Step 3: Build the Project
-Run the build command to generate the static files:
-```bash
-npm run build
-```
-This will create a `dist` folder containing `index.html`, `.js` files, and assets. **This `dist` folder is what you need to publish.**
-
-## Step 4: Deploy to GitHub Pages
-
-### Option A: Manual Upload
-1. Run `npm run build`
-2. Go to the new `dist` folder.
-3. Upload **only the contents of the `dist` folder** to your GitHub repository (or a `gh-pages` branch).
-
-### Option B: Using Git (Recommended)
-1. Commit all your changes (including the new package.json and config files).
-2. Run the build:
+1. Open your terminal / command prompt.
+2. Navigate to this project folder.
+3. Install dependencies (if you haven't already):
    ```bash
-   npm run build
-   ```
-3. Push the `dist` folder to a `gh-pages` branch:
-   ```bash
-   # If you have the 'gh-pages' package installed (optional):
-   # npx gh-pages -d dist
-   
-   # OR manually:
-   git add dist -f
-   git commit -m "Deploy build"
-   git subtree push --prefix dist origin gh-pages
+   npm install
    ```
 
-4. Go to your GitHub Repository Settings -> Pages -> Select `gh-pages` branch (or whichever branch contains the *built* files).
+## How to Deploy
 
-## Step 5: Verify
-Visit your GitHub Pages URL (e.g., `https://jckraus1.github.io/Tillman-Dashboard/`). It should now load correctly without the MIME type error.
+To publish your app to GitHub Pages, simply run:
+
+```bash
+npm run deploy
+```
+
+### What this command does:
+1. It runs `npm run build` to compile your app into the `dist` folder.
+2. It uses the `gh-pages` tool to push the contents of `dist` to a branch named `gh-pages` on your GitHub repository.
+
+## After Deployment
+
+1. Go to your GitHub Repository Settings > **Pages**.
+2. Ensure "Source" is set to **Deploy from a branch**.
+3. Select the **gh-pages** branch (root folder).
+4. Your live site URL will be displayed at the top (e.g., `https://jckraus1.github.io/Crew-Connect/`).
+
+## Troubleshooting
+
+- **Blank Screen?** 
+  Ensure the `base` property in `vite.config.ts` matches your repository name exactly (e.g., `'/Crew-Connect/'`).
+- **Permissions Error?**
+  Make sure you are logged into git locally (`git config user.name` / `git config user.email`).
