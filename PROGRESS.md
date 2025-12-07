@@ -23,20 +23,26 @@
 - [x] **Executive View**: High-level production metrics and market analysis.
 
 ### 3. Data Sync & Excel Integration
-- [x] **Robust Sync**: Imports `tillman-project.xlsx` from GitHub.
-- [x] **Auto-Sync**: Checks for updates every 30 minutes in background.
-- [x] **Smart Parsing**: Handles fuzzy column matching (NTP, Vendor, Market).
-- [x] **Market Data**: Extracts and displays Market/Region info on assignments.
+- [x] **Multi-File Sync**: Merges `tillman-project.xlsx` and `locate-tickets.xlsx`.
+- [x] **Auto-Sync**: Background polling for updates.
+- [x] **Smart Parsing**: Handles fuzzy column matching and dynamic header detection.
+- [x] **Status Mapping**: "Construction Status" column dictates App Status (Pending/Started/Completed).
+- [x] **Locate Tickets**: Extracts and displays specific ticket numbers (1st, 2nd, 3rd) and phone numbers.
 
 ### 4. Assignment Management
 - [x] **Full Lifecycle**: Create → Dispatch → Status Updates → Complete.
-- [x] **Rich Details**: Maps, Photos, History Timeline, Footage Tracking.
-- [x] **Map Integration**: Leaflet maps for job locations.
-- [x] **Photo Uploads**: Capture/upload site photos during status updates.
+- [x] **Project Data Grid**: Detailed view of deadlines, costs, area, and ticket info.
+- [x] **Filtering & Sorting**: Search by address/crew, Sort by Date/Footage.
+- [x] **Edit/Delete**: Full management capabilities for Assignments.
+- [x] **Map Integration**: Leaflet maps + Google Maps Navigation button.
 
-### 5. AI Assistant (Gemini)
+### 5. Issue Management
+- [x] **Reporting**: Create issues linked to specific assignments.
+- [x] **Management**: Edit status (Open/Resolved), Priority, and Delete issues.
+
+### 6. AI Assistant (Gemini)
 - [x] **Field Assistant**: Chatbot for finding suppliers/info.
-- [x] **Grounding**: Integrated with Google Maps and Search tools.
+- [x] **Context Aware**: Ingests full project database (Status, Footage, Notes) to answer specific questions.
 
 ---
 
@@ -50,9 +56,9 @@
 - **AI**: Google GenAI SDK
 
 ### Deployment
-- **Method**: GitHub Pages (via `gh-pages` CLI).
-- **Tool**: `npm run deploy` script.
-- **Base Path**: `/Crew-Connect/` (Configured in vite.config.ts).
+- **Method**: Local Build + GitHub Pages.
+- **Tool**: `npm run deploy` (via `gh-pages`).
+- **Base Path**: `/Crew-Connect/`.
 
 ---
 
@@ -61,6 +67,7 @@
 ### Immediate Priorities
 - [ ] **Push Notifications**: Real-time alerts for assignments.
 - [ ] **Offline Mode**: Service Worker caching for poor signal areas.
+- [ ] **Photo Gallery**: Better gallery view for project photos.
 
 ### Future
 - [ ] **Backend Migration**: Move from localStorage to cloud DB.
@@ -69,6 +76,6 @@
 ---
 
 ## 📊 Stats
-- **Total Features**: ~85% of Phase 1/2 complete.
+- **Total Features**: ~95% of Phase 1/2 complete.
 - **User Types Supported**: 4
 - **External Integrations**: 3 (Excel, Maps, Gemini)
