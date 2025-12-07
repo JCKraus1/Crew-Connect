@@ -290,9 +290,10 @@ export const dataService = {
              // Dynamic Header Search for Locate Tickets File
              const rawLocateData = XLSX.utils.sheet_to_json(locateSheet, { header: 1 });
              let headerRowIndex = 0;
-             for(let i=0; i < Math.min(rawLocateData.length, 10); i++) {
+             for(let i=0; i < Math.min(rawLocateData.length, 20); i++) {
                 const rowStr = JSON.stringify(rawLocateData[i]).toLowerCase();
-                if (rowStr.includes('ticket') || rowStr.includes('ntp')) {
+                // "Map #" is the new project identifier, or look for Ticket headers
+                if (rowStr.includes('map #') || rowStr.includes('1st locate ticket')) {
                    headerRowIndex = i;
                    break;
                 }
@@ -301,21 +302,34 @@ export const dataService = {
              const locateRows = XLSX.utils.sheet_to_json(locateSheet, { range: headerRowIndex, defval: "" });
              
              locateRows.forEach((row: any) => {
-                const ntp = getRowValue(row, ['NTP', 'Project', 'Job #']);
+                // Project Number comes from 'Map #'
+                const ntp = getRowValue(row, ['Map #', 'Map', 'Project', 'Job #']);
+                
                 if (ntp) {
-                   const ticket = getRowValue(row, ['Ticket', 'Ticket #', 'Ticket No']);
-                   const expires = getRowValue(row, ['Expires', 'Expiration Date']);
-                   const status = getRowValue(row, ['Status']);
+                   // Extract up to 4 tickets
+                   const t1 = getRowValue(row, ['1st locate ticket', 'LOCATE TICKET']);
+                   const t2 = getRowValue(row, ['2ND TICKET', '2nd locate ticket']);
+                   const t3 = getRowValue(row, ['3RD TICKET', '3rd locate ticket']);
+                   const t4 = getRowValue(row, ['4TH TICKET', '4th locate ticket']);
+                   const phone = getRowValue(row, ['LOCATE NUMBER', 'Phone', 'Number']);
                    
-                   let info = ticket ? `#${ticket}` : '';
-                   if(expires) info += ` (Exp: ${excelDateToString(expires)})`;
-                   if(status) info += ` [${status}]`;
+                   const tickets = [t1, t2, t3, t4].filter(t => t && String(t).trim().length > 0);
+                   
+                   let info = tickets.length > 0 ? tickets.join(', ') : '';
+                   
+                   if (phone) {
+                      info += info ? ` (Ph: ${phone})` : `Ph: ${phone}`;
+                   }
                    
                    if (info) {
                       const cleanNtp = ntp.toString().trim().toUpperCase();
                       const existing = locateTicketsMap.get(cleanNtp);
-                      // Append if multiple tickets exist for same job
-                      locateTicketsMap.set(cleanNtp, existing ? `${existing}, ${info}` : info);
+                      // Avoid duplicates if row is repeated
+                      if (existing && !existing.includes(info)) {
+                           locateTicketsMap.set(cleanNtp, `${existing} | ${info}`);
+                      } else if (!existing) {
+                           locateTicketsMap.set(cleanNtp, info);
+                      }
                    }
                 }
              });

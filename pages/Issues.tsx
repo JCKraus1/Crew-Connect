@@ -19,6 +19,7 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
     assignmentId: '',
     type: 'Access Problem',
     priority: 'medium',
+    status: 'open',
     description: ''
   });
 
@@ -28,6 +29,7 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
       assignmentId: '',
       type: 'Access Problem',
       priority: 'medium',
+      status: 'open',
       description: ''
     });
     setShowForm(true);
@@ -39,6 +41,7 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
       assignmentId: issue.assignmentId,
       type: issue.type,
       priority: issue.priority,
+      status: issue.status,
       description: issue.description
     });
     setShowForm(true);
@@ -58,7 +61,7 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
       onCreateIssue({
         ...formData,
         reportedBy: currentUser.id,
-        status: 'open'
+        // Status is handled by formData now
       });
     }
     setShowForm(false);
@@ -200,6 +203,19 @@ const Issues: React.FC<IssuesProps> = ({ issues, assignments, currentUser, onCre
                     <option value="critical">Critical</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <select 
+                  className="w-full p-2 border border-slate-300 rounded-lg outline-none"
+                  value={formData.status}
+                  onChange={e => setFormData({...formData, status: e.target.value})}
+                >
+                  <option value="open">Open</option>
+                  <option value="investigating">Investigating</option>
+                  <option value="resolved">Resolved</option>
+                </select>
               </div>
 
               <div>

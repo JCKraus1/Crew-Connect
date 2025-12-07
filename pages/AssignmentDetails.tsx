@@ -63,6 +63,7 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
           scheduledDate: data.scheduledDate,
           crewId: data.crewId,
           supervisorId: data.supervisorId,
+          status: data.status,
           metrics: { ...data.metrics }
         });
         setStatusFootage(data.metrics.completedFootage);
@@ -190,13 +191,27 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
           )}
           
           <div className="flex items-center space-x-3">
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize
-              ${assignment.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 
-                assignment.status === 'started' ? 'bg-amber-100 text-amber-800' : 
-                assignment.status === 'en_route' ? 'bg-blue-100 text-blue-800' : 
-                'bg-slate-100 text-slate-800'}`}>
-              {assignment.status.replace('_', ' ')}
-            </span>
+            {isEditing ? (
+              <select
+                className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium border border-slate-300 outline-none bg-white"
+                value={editForm.status}
+                onChange={e => setEditForm({...editForm, status: e.target.value as any})}
+              >
+                <option value="pending">Pending</option>
+                <option value="en_route">En Route</option>
+                <option value="started">Started</option>
+                <option value="blocked">Blocked</option>
+                <option value="completed">Completed</option>
+              </select>
+            ) : (
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize
+                ${assignment.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 
+                  assignment.status === 'started' ? 'bg-amber-100 text-amber-800' : 
+                  assignment.status === 'en_route' ? 'bg-blue-100 text-blue-800' : 
+                  'bg-slate-100 text-slate-800'}`}>
+                {assignment.status.replace('_', ' ')}
+              </span>
+            )}
             <span className="text-slate-400">|</span>
             <span className="text-slate-500 font-mono">ID: {assignment.id.toUpperCase()}</span>
           </div>
@@ -374,16 +389,23 @@ const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ currentUser, onUp
               
               {/* Separate Sections for Long Text */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-100">
-                {assignment.extendedDetails.excelNotes && (
-                   <div className="md:col-span-2">
-                     <p className="text-xs text-slate-500 uppercase font-medium mb-1 flex items-center">
-                       <StickyNote size={12} className="mr-1" /> Notes
-                     </p>
-                     <p className="text-sm text-slate-700 whitespace-pre-line bg-amber-50 p-3 rounded-lg border border-amber-100 h-full">
-                       {assignment.extendedDetails.excelNotes}
-                     </p>
+                <div className="md:col-span-2">
+                   <p className="text-xs text-slate-500 uppercase font-medium mb-1 flex items-center">
+                     <StickyNote size={12} className="mr-1" /> Project Notes & Locates
+                   </p>
+                   <div className="text-sm text-slate-700 whitespace-pre-line bg-amber-50 p-3 rounded-lg border border-amber-100 h-full">
+                     {assignment.extendedDetails.locateTickets && (
+                       <div className="mb-2 pb-2 border-b border-amber-200">
+                         <span className="font-bold text-slate-800">Locate Tickets:</span> {assignment.extendedDetails.locateTickets}
+                       </div>
+                     )}
+                     {assignment.extendedDetails.excelNotes ? (
+                        <span>{assignment.extendedDetails.excelNotes}</span>
+                     ) : (
+                        !assignment.extendedDetails.locateTickets && <span className="text-slate-400 italic">No notes available.</span>
+                     )}
                    </div>
-                )}
+                </div>
               </div>
             </div>
           )}
